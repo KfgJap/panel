@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CyberStalker Panel</title>
+    <style>
+        body { background-color: #121212; color: #00ffcc; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; overflow: hidden; }
+        .login-box { background: #1e1e1e; padding: 30px; border-radius: 15px; box-shadow: 0 0 20px rgba(0, 255, 204, 0.2); text-align: center; width: 280px; }
+        h2 { margin-top: 0; text-shadow: 0 0 10px #00ffcc; }
+        input { width: 90%; padding: 12px; margin: 15px 0; border: 1px solid #333; border-radius: 8px; background: #2a2a2a; color: #fff; font-size: 16px; text-align: center; outline: none; }
+        input:focus { border-color: #00ffcc; box-shadow: 0 0 10px rgba(0, 255, 204, 0.5); }
+        button { width: 100%; padding: 12px; background: #00ffcc; color: #121212; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #00ccaa; box-shadow: 0 0 15px #00ffcc; }
+        .panel { display: none; width: 100vw; height: 100vh; position: relative; }
+        .video-container { width: 100%; height: 100%; background: #000; display: flex; justify-content: center; align-items: center; }
+        .video-container img { width: 100%; height: auto; }
+        .close-btn { position: absolute; top: 20px; right: 20px; width: 45px; height: 45px; background: rgba(50, 50, 50, 0.8); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: #fff; font-size: 24px; text-decoration: none; cursor: pointer; z-index: 10; }
+        .close-btn:hover { background: #ff3333; }
+        .controls { position: absolute; bottom: 30px; left: 0; width: 100%; display: flex; justify-content: center; gap: 15px; z-index: 10; }
+        .controls button { width: auto; padding: 10px 20px; border-radius: 20px; background: rgba(30, 30, 30, 0.8); color: #00ffcc; border: 1px solid #00ffcc; }
+        .controls button:hover { background: #00ffcc; color: #121212; }
+    </style>
+</head>
+<body>
+
+    <div class="login-box" id="loginBox">
+        <h2>Вход</h2>
+        <input type="password" id="passInput" placeholder="Введите пароль">
+        <button onclick="login()">Войти</button>
+    </div>
+
+    <div class="panel" id="panel">
+        <a href="#" class="close-btn" onclick="logout()">✕</a>
+        <div class="video-container">
+            <!-- Пока тут заглушка, потом сюда вставим настоящий поток с ноута -->
+            <img id="stream" src="https://via.placeholder.com/1080x1920.png?text=Ожидание+сигнала..." alt="Stream">
+        </div>
+        <div class="controls">
+            <button onclick="switchCam('front')">Фронталка</button>
+            <button onclick="switchCam('back')">Задняя</button>
+        </div>
+    </div>
+
+    <script>
+        function login() {
+            var pass = document.getElementById('passInput').value;
+            if (pass === 'Rhenjdf1)') {
+                document.getElementById('loginBox').style.display = 'none';
+                document.getElementById('panel').style.display = 'block';
+            } else {
+                alert('Неверный пароль!');
+            }
+        }
+
+        function logout() {
+            document.getElementById('panel').style.display = 'none';
+            document.getElementById('loginBox').style.display = 'block';
+            document.getElementById('passInput').value = '';
+        }
+
+        function switchCam(type) {
+            var img = document.getElementById('stream');
+            img.src = "https://via.placeholder.com/1080x1920.png?text=Запрос+камеры:+" + type;
+        }
+    </script>
+</body>
+</html>
